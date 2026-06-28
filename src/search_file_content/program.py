@@ -804,7 +804,7 @@ def main():
     
     icon_path=resource_path("icons", "logo.png")
     extras="" 
-    '''
+    
     create_desktop_directory()    
     create_desktop_menu()
     create_desktop_file(os.path.join("~",".local","share","applications"), 
@@ -831,7 +831,7 @@ def main():
                                 extras=extras,
                                 icon_path=icon_path)
             return
-    '''
+    
     app = QApplication(sys.argv)
     app.setApplicationName(about.__package__) 
     
