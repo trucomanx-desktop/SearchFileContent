@@ -20,8 +20,8 @@ from PyQt5.QtGui import (
 )
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QTabWidget, QListWidget,
-    QListWidgetItem, QTextEdit, QProgressBar, QSplitter,
+    QLabel, QLineEdit, QPushButton, QTabWidget, QTreeWidget, QListWidget,
+    QTreeWidgetItem, QHeaderView, QTextEdit, QProgressBar, QSplitter,
     QCheckBox, QGroupBox, QScrollArea, QFrame, QToolButton,
     QSizePolicy, QSpacerItem, QMessageBox, QFileDialog,
     QPlainTextEdit, QStatusBar, QToolBar, QAction
@@ -44,14 +44,16 @@ CONFIG_PATH = os.path.join( os.path.expanduser("~"),
                             "config.json" )
 
 DEFAULT_CONTENT={   
+    "toolbar_data": "Defaults",
+    "toolbar_data_tooltip": "Open the configuration JSON file that contains the default data to be loaded.",
     "toolbar_configure": "Configure",
-    "toolbar_configure_tooltip": "Open the configure Json file of program GUI",
+    "toolbar_configure_tooltip": "Open the configure JSON file of program GUI",
     "toolbar_about": "About",
     "toolbar_about_tooltip": "About the program",
     "toolbar_coffee": "Coffee",
     "toolbar_coffee_tooltip": "Buy me a coffee (TrucomanX)",
     "window_width": 1024,
-    "window_height": 800
+    "window_height": 800,
 }
 
 configure.verify_default_config(CONFIG_PATH,default_content=DEFAULT_CONTENT)
@@ -60,11 +62,26 @@ CONFIG=configure.load_config(CONFIG_PATH)
 
 # ---------------------------------------
 
+# ---------- Path to data file ----------
+DATA_PATH = os.path.join( os.path.expanduser("~"),
+                            ".config", 
+                            about.__package__, 
+                            "data.json" )
+
+DEFAULT_DATA_CONTENT={
+    "default_dir": str(Path.home()),
+    "default_ignored_exts": [".npy", ".pyc", ".bin", ".exe", ".png", ".jpg", ".jpeg"]
+}
+
+configure.verify_default_config(DATA_PATH,default_content=DEFAULT_DATA_CONTENT)
+
+DATA=configure.load_config(DATA_PATH)
+
+# ---------------------------------------
+
 
 MATCH_HL = "#4a3f00"
 MATCH_FG = "#f1fa8c"
-
-DEFAULT_IGNORED_EXTS = [".npy", ".pyc", ".bin", ".exe", ".png", ".jpg", ".jpeg"]
 
 
 # ─────────────────────────── WORKERS ──────────────────────────────
@@ -247,7 +264,7 @@ class ExtensionList(QWidget):
         self.lst = QListWidget()
         self.lst.setFixedHeight(100)
         layout.addWidget(self.lst)
-        for ext in DEFAULT_IGNORED_EXTS:
+        for ext in DATA["default_ignored_exts"]:
             self.lst.addItem(ext)
 
     def _add(self):
@@ -385,7 +402,7 @@ class SearchTab(QWidget):
         dir_row = QHBoxLayout()
         lbl_dir = QLabel("Directory")
         lbl_dir.setFixedWidth(70)
-        self.edit_dir = QLineEdit()
+        self.edit_dir = QLineEdit(DATA["default_dir"])
         self.edit_dir.setPlaceholderText("/path/to/search …")
         btn_browse = QPushButton("Browse")
         btn_browse.setObjectName("secondary")
@@ -399,15 +416,49 @@ class SearchTab(QWidget):
         # Search text row
         txt_row = QHBoxLayout()
         lbl_txt = QLabel("Search text")
-        lbl_txt.setFixedWidth(70)
+        #lbl_txt.setFixedWidth(70)
         self.edit_text = QLineEdit()
         self.edit_text.setPlaceholderText("Text to find inside files …")
         self.btn_search = QPushButton("Search")
-        self.btn_search.setFixedWidth(72)
+        #self.btn_search.setFixedWidth(72)
+        self.btn_search.setToolTip(
+            "Start searching the selected directory using the current filters."
+        )
+
+        self.btn_search.setStyleSheet("""
+        QPushButton {
+            background-color: #2d7d46;
+            color: white;
+            border: 1px solid #236637;
+            border-radius: 5px;
+            padding: 6px 12px;
+            font-weight: bold;
+        }
+
+        QPushButton:hover {
+            background-color: #379956;
+        }
+
+        QPushButton:pressed {
+            background-color: #1f5b31;
+        }
+
+        QPushButton:disabled {
+            background-color: #808080;
+            color: #d0d0d0;
+        }
+
+        QToolTip {
+            background-color: #ffffdc;
+            color: black;
+            border: 1px solid #808080;
+            padding: 4px;
+        }
+        """)
         self.btn_search.clicked.connect(self._start)
         self.btn_abort = QPushButton("Abort")
         self.btn_abort.setObjectName("danger")
-        self.btn_abort.setFixedWidth(60)
+        #self.btn_abort.setFixedWidth(60)
         self.btn_abort.setEnabled(False)
         self.btn_abort.clicked.connect(self._abort)
         txt_row.addWidget(lbl_txt)
@@ -436,9 +487,20 @@ class SearchTab(QWidget):
         top_row.addStretch()
         top_row.addWidget(self.lbl_count)
         left_layout.addLayout(top_row)
-        self.file_list = QListWidget()
+
+        self.file_list = QTreeWidget()
+        self.file_list.setHeaderLabel("File")
+        self.file_list.setSortingEnabled(True)
+        self.file_list.sortByColumn(0, Qt.AscendingOrder)
+        self.file_list.header().setSectionResizeMode(QHeaderView.Stretch)
+
         self.file_list.currentItemChanged.connect(self._on_file_selected)
+        self.file_list.itemDoubleClicked.connect(self._on_file_double_clicked)
+
         left_layout.addWidget(self.file_list)
+
+
+
 
         # Right: preview
         right = QWidget()
@@ -451,6 +513,14 @@ class SearchTab(QWidget):
         self.preview = QPlainTextEdit()
         self.preview.setReadOnly(True)
         right_layout.addWidget(self.preview)
+        
+        lbl_path = QLabel("Full path")
+        lbl_path.setObjectName("subtitle")
+        right_layout.addWidget(lbl_path)
+
+        self.edit_path = QLineEdit()
+        self.edit_path.setReadOnly(True)
+        right_layout.addWidget(self.edit_path)
 
         splitter.addWidget(left)
         splitter.addWidget(right)
@@ -468,6 +538,8 @@ class SearchTab(QWidget):
 
     def _start(self):
         directory = self.edit_dir.text().strip()
+        self.search_root = directory
+        
         search_text = self.edit_text.text().strip()
 
         if not directory:
@@ -481,6 +553,7 @@ class SearchTab(QWidget):
         self._results   = {}
         self.file_list.clear()
         self.preview.clear()
+        self.edit_path.clear()
         self.lbl_count.setText("")
         self.btn_search.setEnabled(False)
         self.btn_abort.setEnabled(True)
@@ -537,12 +610,17 @@ class SearchTab(QWidget):
 
     def _on_match_found(self, fp: str, hits: list):
         self._results[fp] = hits
-        short = os.path.basename(fp)
-        item = QListWidgetItem(f"  {short}")
-        item.setData(Qt.UserRole, fp)
-        item.setToolTip(fp)
-        self.file_list.addItem(item)
-        cnt = self.file_list.count()
+        
+        relative = os.path.relpath(fp, self.search_root)
+
+        item = QTreeWidgetItem([relative])
+        item.setData(0, Qt.UserRole, fp)
+        item.setToolTip(0, fp)
+
+        self.file_list.addTopLevelItem(item)
+        
+        
+        cnt = self.file_list.topLevelItemCount()
         self.lbl_count.setText(f"{cnt} match{'es' if cnt != 1 else ''}")
 
     def _on_search_done(self, total: int):
@@ -566,7 +644,11 @@ class SearchTab(QWidget):
     def _on_file_selected(self, current, _previous):
         if current is None:
             return
-        fp = current.data(Qt.UserRole)
+
+        fp = current.data(0, Qt.UserRole)
+
+        self.edit_path.setText(fp)
+
         hits = self._results.get(fp, [])
         self.preview.clear()
 
@@ -579,7 +661,10 @@ class SearchTab(QWidget):
         if self._highlighter:
             self._highlighter.rehighlight()
 
-
+    def _on_file_double_clicked(self, item, column):
+        fp = item.data(0, Qt.UserRole)
+        self.window()._open_file_in_text_editor(fp)
+        
 # ─────────────────────────── MAIN WINDOW ──────────────────────────
 
 class MainWindow(QMainWindow):
@@ -638,7 +723,15 @@ class MainWindow(QMainWindow):
         self.toolbar.addWidget(self.toolbar_spacer)
         
         #
-        self.configure_action = QAction(QIcon.fromTheme("document-properties"), 
+        self.data_action = QAction(QIcon(resource_path("icons", "text-configure.png")), 
+                                        CONFIG["toolbar_data"], 
+                                        self)
+        self.data_action.setToolTip(CONFIG["toolbar_data_tooltip"])
+        self.data_action.triggered.connect(self.open_data_editor)
+        self.toolbar.addAction(self.data_action)
+
+        #
+        self.configure_action = QAction(QIcon(resource_path("icons", "text-configure.png")), 
                                         CONFIG["toolbar_configure"], 
                                         self)
         self.configure_action.setToolTip(CONFIG["toolbar_configure_tooltip"])
@@ -646,7 +739,7 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.configure_action)
         
         #
-        self.about_action = QAction(QIcon.fromTheme("help-about"), 
+        self.about_action = QAction(QIcon(resource_path("icons", "status_help.png")), 
                                     CONFIG["toolbar_about"], 
                                     self)
         self.about_action.setToolTip(CONFIG["toolbar_about_tooltip"])
@@ -654,7 +747,7 @@ class MainWindow(QMainWindow):
         self.toolbar.addAction(self.about_action)
         
         # Coffee
-        self.coffee_action = QAction(   QIcon.fromTheme("emblem-favorite"), 
+        self.coffee_action = QAction(   QIcon(resource_path("icons", "emote-love.png")), 
                                         CONFIG["toolbar_coffee"], 
                                         self)
         self.coffee_action.setToolTip(CONFIG["toolbar_coffee_tooltip"])
@@ -683,6 +776,9 @@ class MainWindow(QMainWindow):
     def open_configure_editor(self):
         self._open_file_in_text_editor(CONFIG_PATH)
 
+    def open_data_editor(self):
+        self._open_file_in_text_editor(DATA_PATH)
+
     def open_about(self):
         data={
             "version": about.__version__,
@@ -705,12 +801,10 @@ class MainWindow(QMainWindow):
 
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-       
-    '''
-    #ensure_mime_type("npy", "application/x-npy", "NumPy array file")
-    icon_path=resource_path("icons", "logo.png")
-    extras="" # "MimeType=text/vnd.graphviz;" # "MimeType=application/x-npy;"
     
+    icon_path=resource_path("icons", "logo.png")
+    extras="" 
+    '''
     create_desktop_directory()    
     create_desktop_menu()
     create_desktop_file(os.path.join("~",".local","share","applications"), 
@@ -738,7 +832,6 @@ def main():
                                 icon_path=icon_path)
             return
     '''
-    
     app = QApplication(sys.argv)
     app.setApplicationName(about.__package__) 
     
