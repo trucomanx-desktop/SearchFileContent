@@ -2,11 +2,12 @@
 
 Search for text inside files across directories, with path filters and live content preview.
 
-![logo](screenshot.png)
+![logo](https://raw.githubusercontent.com/trucomanx-desktop/SearchFileContent/main/screenshot.png)
 
 ## 1. Installing
 
 To install the package from [PyPI](https://pypi.org/project/search_file_content/), follow the instructions below:
+
 
 ### With pip
 
@@ -33,7 +34,7 @@ search-file-content
 ```
 ## 2. More information
 
-If you want more information go to [doc](https://github.com/trucomanx-desktop/SearchFileContent/blob/main/doc) directory
+If you want more information go to [doc](https://github.com/trucomanx-desktop/SearchFileContent/blob/main/doc) directory.
 
 ## 3. Buy me a coffee
 

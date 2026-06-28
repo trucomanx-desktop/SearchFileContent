@@ -1,0 +1,13 @@
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Packaging (restrito ao src)
+/src/dist/
+/src/build/
+/src/*.egg-info/
+
+# (opcional)
+.venv/
+venv/
+.env
